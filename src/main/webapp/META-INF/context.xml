@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Context path="/Bakery">
+    <Resource name="jdbc/BakeryDB"
+              auth="Container"
+              type="javax.sql.DataSource"
+              driverClassName="com.microsoft.sqlserver.jdbc.SQLServerDriver"
+              url="jdbc:sqlserver://localhost\UYENNHI;databaseName=bakery_db;encrypt=true;trustServerCertificate=true;"
+              username="sa"
+              password="12345"
+              maxTotal="20"
+              maxIdle="10"
+              maxWaitMillis="10000"/>
+</Context>
