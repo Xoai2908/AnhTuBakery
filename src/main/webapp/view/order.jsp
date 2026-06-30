@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="../css/order.css?v=20260616">
 </head>
 <body>
+    <div id="jsp-metadata" data-context-path="${pageContext.request.contextPath}" style="display:none;"></div>
 
     <!-- HEADER -->
     <header class="site-header" id="site-header">
@@ -232,50 +233,81 @@
         <!-- ===== CONFIRMATION MODAL ===== -->
         <div class="modal-overlay hidden" id="confirm-modal-overlay">
             <div class="confirm-modal" id="confirm-modal" role="dialog" aria-modal="true" aria-label="Xác nhận đơn hàng">
+                <style>
+                    @keyframes modal-spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    .modal-spinner {
+                        border: 2px solid var(--cream-dark);
+                        border-top: 2px solid var(--amber);
+                        border-radius: 50%;
+                        width: 18px;
+                        height: 18px;
+                        animation: modal-spin 1.2s linear infinite;
+                    }
+                    .hidden-state {
+                        display: none !important;
+                    }
+                </style>
                 <div class="modal-header" id="modal-header">
                     <h2 class="modal-title" id="modal-title">✅ Xác Nhận Đơn Hàng</h2>
                     <button class="modal-close-btn" id="modal-close-btn" onclick="closeConfirmModal()">✕</button>
                 </div>
                 <div class="modal-body" id="modal-body">
-                    <div class="modal-summary" id="modal-summary">
-                        <!-- Populated by JS -->
-                    </div>
-                    <div class="qr-section" id="qr-section">
-                        <h3 class="qr-title" id="qr-title">📱 Thanh toán chuyển khoản</h3>
-                        <div class="qr-display" id="qr-display">
-                            <img id="qr-image" src="" alt="Mã QR Thanh Toán" style="max-width: 230px; border: 2.5px solid var(--amber); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);" />
+                    <!-- State 1: Confirm Details -->
+                    <div id="modal-state-confirm">
+                        <div class="modal-summary" id="modal-summary">
+                            <!-- Populated by JS -->
                         </div>
-                        <div class="qr-info" id="qr-info">
-                            <div class="qr-info-row">
-                                <span>Ngân hàng:</span>
-                                <strong>BIDV (PGD An Đông)</strong>
+                    </div>
+
+                    <!-- State 2: Payment/QR (Hidden initially) -->
+                    <div id="modal-state-payment" class="hidden-state">
+                        <div class="qr-section" id="qr-section">
+                            <h3 class="qr-title" id="qr-title">📱 Thanh toán chuyển khoản</h3>
+                            <div class="qr-display" id="qr-display">
+                                <img id="qr-image" src="" alt="Mã QR Thanh Toán" style="max-width: 230px; border: 2.5px solid var(--amber); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);" />
                             </div>
-                            <div class="qr-info-row">
-                                <span>Chủ tài khoản:</span>
-                                <strong>VO HO UYEN NHI</strong>
+                            <div class="qr-info" id="qr-info">
+                                <div class="qr-info-row">
+                                    <span>Ngân hàng:</span>
+                                    <strong>BIDV (PGD An Cựu)</strong>
+                                </div>
+                                <div class="qr-info-row">
+                                    <span>Chủ tài khoản:</span>
+                                    <strong>HO KINH DOANH VO VAN TRU</strong>
+                                </div>
+                                <div class="qr-info-row">
+                                    <span>Số tài khoản:</span>
+                                    <strong>8888824977</strong>
+                                </div>
+                                <div class="qr-info-row">
+                                    <span>Số tiền:</span>
+                                    <strong id="qr-amount" class="qr-amount">0đ</strong>
+                                </div>
+                                <div class="qr-info-row">
+                                    <span>Nội dung CK:</span>
+                                    <strong id="qr-content">ANHTUBAKERY DHMOI</strong>
+                                </div>
+                                
+                                <div style="display:flex; justify-content:center; align-items:center; gap: 8px; margin-top: 15px; padding: 12px; background: rgba(245,158,11,0.08); border-radius: 8px; border: 1.5px solid rgba(245,158,11,0.15);">
+                                    <div class="modal-spinner"></div>
+                                    <span style="font-size:0.85rem; font-weight:800; color:var(--brown-deep);">Đang chờ thanh toán tự động...</span>
+                                </div>
+                                
+                                <p class="qr-note-text" id="qr-note-text" style="margin-top:12px; line-height:1.5;">Vui lòng chuyển khoản đúng số tiền và nội dung chuyển khoản ở trên. Giao dịch sẽ được hệ thống kiểm tra và tự động xác nhận ngay lập tức.</p>
                             </div>
-                            <div class="qr-info-row">
-                                <span>Số tài khoản:</span>
-                                <strong>8821037502</strong>
-                            </div>
-                            <div class="qr-info-row">
-                                <span>Số tiền:</span>
-                                <strong id="qr-amount" class="qr-amount">0đ</strong>
-                            </div>
-                            <div class="qr-info-row">
-                                <span>Nội dung CK:</span>
-                                <strong id="qr-content">ANHTUBAKERY DHMOI</strong>
-                            </div>
-                            <p class="qr-note-text" id="qr-note-text">Sau khi chuyển, vui lòng chờ xác nhận từ Anh Tú Bakery. Chúng tôi sẽ thông báo khi đơn được xác nhận!</p>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer" id="modal-footer">
                     <button class="btn btn-outline" onclick="closeConfirmModal()" id="btn-edit-order">← Sửa đơn hàng</button>
-                    <button class="btn btn-primary" id="btn-place-order" onclick="placeOrder()">✅ Xác nhận đặt hàng</button>
+                    <button class="btn btn-primary" id="btn-place-order" onclick="placeOrder()">✅ Xác nhận & Thanh toán</button>
                 </div>
             </div>
         </div>
+
 
         <!-- SUCCESS STATE -->
         <div class="success-panel hidden" id="success-panel">

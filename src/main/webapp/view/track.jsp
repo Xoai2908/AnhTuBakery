@@ -989,7 +989,7 @@
 
                     // QR section if PENDING
                     const qrContentVal = `ANHTUBAKERY ${order.id}`;
-                    const qrImageUrl = `https://img.vietqr.io/image/BIDV-8821037502-compact2.png?amount=${order.total}&addInfo=${encodeURIComponent(qrContentVal)}&accountName=VO%20HO%20UYEN%20NHI`;
+                    const qrImageUrl = `https://img.vietqr.io/image/BIDV-8888824977-compact2.png?amount=${order.total}&addInfo=${encodeURIComponent(qrContentVal)}&accountName=HO%20KINH%20DOANH%20VO%20VAN%20TRU`;
                     
                     const qrBlockHtml = order.status === 'PENDING' ? `
                         <div class="payment-qr-block">
@@ -999,9 +999,9 @@
                             <div class="payment-qr-info">
                                 <div class="qr-desc-title">💳 Chuyển khoản QR ngân hàng</div>
                                 <div class="qr-info-detail">
-                                    <div class="qr-info-row"><span>Ngân hàng:</span><strong>BIDV (PGD An Đông)</strong></div>
-                                    <div class="qr-info-row"><span>Chủ tài khoản:</span><strong>VO HO UYEN NHI</strong></div>
-                                    <div class="qr-info-row"><span>Số tài khoản:</span><strong>8821037502</strong></div>
+                                    <div class="qr-info-row"><span>Ngân hàng:</span><strong>BIDV (PGD An Cựu)</strong></div>
+                                    <div class="qr-info-row"><span>Chủ tài khoản:</span><strong>HO KINH DOANH VO VAN TRU</strong></div>
+                                    <div class="qr-info-row"><span>Số tài khoản:</span><strong>8888824977</strong></div>
                                     <div class="qr-info-row"><span>Số tiền:</span><strong style="color:var(--red-dark)">${order.total.toLocaleString('vi-VN')}đ</strong></div>
                                     <div class="qr-info-row"><span>Nội dung CK:</span><strong style="color:var(--red-dark)">${qrContentVal}</strong></div>
                                 </div>

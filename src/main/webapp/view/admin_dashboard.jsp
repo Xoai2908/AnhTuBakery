@@ -505,7 +505,7 @@
             <div class="board-toolbar">
                 <div class="filter-tabs">
                     <button class="filter-tab active" data-filter="ALL">Tất cả</button>
-                    <button class="filter-tab" data-filter="PENDING">Chờ xử lý</button>
+                    <button class="filter-tab" data-filter="PENDING">Chờ thanh toán</button>
                     <button class="filter-tab" data-filter="PREPARING">Chuẩn bị</button>
                     <button class="filter-tab" data-filter="READY">Sẵn sàng</button>
                     <button class="filter-tab" data-filter="DELIVERING">Đang giao</button>
@@ -594,6 +594,7 @@
             loadOrders();
             setupFilters();
             setupSearch();
+            connectAdminWebSocket();
         });
 
         function loadOrders() {
@@ -654,7 +655,10 @@
             // Filter orders
             let filtered = allOrders;
             
-            if (currentFilter !== 'ALL') {
+            if (currentFilter === 'ALL') {
+                // Mặc định ẩn các đơn PENDING (Chờ thanh toán) khỏi tab Tất cả
+                filtered = filtered.filter(o => o.status !== 'PENDING');
+            } else {
                 filtered = filtered.filter(o => o.status === currentFilter);
             }
             
@@ -839,6 +843,44 @@
             toastTimer = setTimeout(() => {
                 toast.className = 'toast';
             }, 3000);
+        }
+
+        function connectAdminWebSocket() {
+            // Tự động tìm context path từ pathname
+            const pathSegments = window.location.pathname.split('/');
+            let contextPath = '';
+            if (pathSegments.length > 1 && pathSegments[1] !== 'view') {
+                contextPath = '/' + pathSegments[1];
+            }
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = protocol + window.location.host + contextPath + '/admin-ws';
+
+            console.log('[Admin WS] Connecting to:', wsUrl);
+
+            try {
+                const ws = new WebSocket(wsUrl);
+
+                ws.onmessage = function(event) {
+                    if (event.data === 'refresh') {
+                        console.log('[Admin WS] Refresh event received. Reloading orders...');
+                        loadOrders();
+                        showToast('🔔 Có cập nhật đơn hàng mới!');
+                    }
+                };
+
+                ws.onclose = function() {
+                    console.log('[Admin WS] Connection closed. Reconnecting in 5s...');
+                    setTimeout(connectAdminWebSocket, 5000);
+                };
+
+                ws.onerror = function(err) {
+                    console.error('[Admin WS] Error:', err);
+                    ws.close();
+                };
+            } catch (e) {
+                console.error('[Admin WS] Connection failed:', e);
+            }
         }
     </script>
 </body>

@@ -513,21 +513,12 @@ function openConfirmModal() {
         <div class="modal-info-row"><span class="modal-info-label" style="font-weight:800">TỔNG THANH TOÁN</span><span class="modal-info-val highlight">${formatVND(total)}</span></div>
     `;
 
-    document.getElementById('qr-amount').textContent = formatVND(total);
-    
-    // Set custom transfer content using customer's phone number
-    const contentVal = `ANHTUBAKERY ${phone}`;
-    document.getElementById('qr-content').textContent = contentVal;
-
-    // Generate VietQR URL dynamically
-    const qrImageEl = document.getElementById('qr-image');
-    if (qrImageEl) {
-        const qrUrl = 'https://img.vietqr.io/image/BIDV-8821037502-compact2.png'
-            + '?amount=' + total
-            + '&addInfo=' + encodeURIComponent(contentVal)
-            + '&accountName=VO%20HO%20UYEN%20NHI';
-        qrImageEl.src = qrUrl;
-    }
+    // Reset Modal States
+    document.getElementById('modal-state-confirm')?.classList.remove('hidden-state');
+    document.getElementById('modal-state-payment')?.classList.add('hidden-state');
+    document.getElementById('modal-close-btn')?.classList.remove('hidden-state');
+    document.getElementById('modal-footer')?.classList.remove('hidden-state');
+    document.getElementById('modal-title').textContent = "✅ Xác Nhận Đơn Hàng";
 
     const overlay = document.getElementById('confirm-modal-overlay');
     overlay?.classList.remove('hidden');
@@ -540,6 +531,8 @@ function closeConfirmModal() {
 }
 
 /* ===== PLACE ORDER ===== */
+let activePaymentSocket = null;
+
 function placeOrder() {
     const btn = document.getElementById('btn-place-order');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang xử lý...'; }
@@ -597,33 +590,101 @@ function placeOrder() {
         return response.json();
     })
     .then(data => {
-        closeConfirmModal();
-
         // Sử dụng mã đơn hàng thực tế từ backend
         const orderId = data.id;
-        document.getElementById('order-id-display').textContent = orderId;
 
-        // Cập nhật nội dung mã QR
-        document.getElementById('qr-content').textContent = `ANHTUBAKERY ${orderId}`;
+        // Cập nhật thông tin thanh toán QR
+        document.getElementById('qr-amount').textContent = formatVND(total);
+        const contentVal = `ANHTUBAKERY ${orderId}`;
+        document.getElementById('qr-content').textContent = contentVal;
 
-        // Xóa giỏ hàng
-        if (window.BakeryCart) window.BakeryCart.clear();
+        // Generate VietQR URL dynamically
+        const qrImageEl = document.getElementById('qr-image');
+        if (qrImageEl) {
+            const qrUrl = 'https://img.vietqr.io/image/BIDV-8888824977-compact2.png'
+                + '?amount=' + total
+                + '&addInfo=' + encodeURIComponent(contentVal)
+                + '&accountName=HO%20KINH%20DOANH%20VO%20VAN%20TRU';
+            qrImageEl.src = qrUrl;
+        }
 
-        // Hiển thị giao diện đặt hàng thành công
-        const orderLayout = document.getElementById('order-layout');
-        if (orderLayout) orderLayout.style.display = 'none';
-        const successPanel = document.getElementById('success-panel');
-        successPanel?.classList.remove('hidden');
-        successPanel?.scrollIntoView({ behavior: 'smooth' });
+        // Chuyển Modal sang Trạng thái 2: Chờ chuyển khoản
+        document.getElementById('modal-state-confirm')?.classList.add('hidden-state');
+        document.getElementById('modal-state-payment')?.classList.remove('hidden-state');
+        document.getElementById('modal-title').textContent = "📱 Quét Mã Thanh Toán";
+        document.getElementById('modal-close-btn')?.classList.add('hidden-state'); // Ẩn nút X để bắt buộc thanh toán
+        document.getElementById('modal-footer')?.classList.add('hidden-state'); // Ẩn footer
 
-        if (btn) { btn.disabled = false; btn.textContent = '✅ Xác nhận đặt hàng'; }
+        if (btn) { btn.disabled = false; btn.textContent = '✅ Xác nhận & Thanh toán'; }
+
+        // Kết nối WebSocket để tự động bắt sự kiện thanh toán thành công
+        connectPaymentWebSocket(orderId);
     })
     .catch(error => {
         console.error('Error placing order:', error);
         showToast('⚠️ Lỗi: ' + error.message, 'warn');
-        if (btn) { btn.disabled = false; btn.textContent = '✅ Xác nhận đặt hàng'; }
+        if (btn) { btn.disabled = false; btn.textContent = '✅ Xác nhận & Thanh toán'; }
     });
 }
+
+function connectPaymentWebSocket(orderId) {
+    if (activePaymentSocket) {
+        try { activePaymentSocket.close(); } catch(e) {}
+    }
+
+    const metadataEl = document.getElementById('jsp-metadata');
+    const contextPath = metadataEl ? (metadataEl.getAttribute('data-context-path') || '') : '';
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsUrl = protocol + window.location.host + contextPath + '/order-ws/' + encodeURIComponent(orderId);
+
+    console.log('[Payment WS] Connecting to:', wsUrl);
+
+    try {
+        const ws = new WebSocket(wsUrl);
+        activePaymentSocket = ws;
+
+        ws.onmessage = function(event) {
+            const status = event.data;
+            console.log('[Payment WS] Message received:', status);
+            
+            if (status === 'PAID') {
+                // Thanh toán thành công!
+                ws.close();
+                activePaymentSocket = null;
+
+                // Xóa giỏ hàng
+                if (window.BakeryCart) window.BakeryCart.clear();
+
+                // Đóng modal
+                closeConfirmModal();
+
+                // Hiển thị màn hình đặt hàng thành công
+                document.getElementById('order-id-display').textContent = orderId;
+                const orderLayout = document.getElementById('order-layout');
+                if (orderLayout) orderLayout.style.display = 'none';
+                
+                const successPanel = document.getElementById('success-panel');
+                successPanel?.classList.remove('hidden');
+                successPanel?.scrollIntoView({ behavior: 'smooth' });
+
+                // Play a generic success audio if possible, or show toast
+                showToast('🎉 Thanh toán thành công! Đơn hàng của bạn đã được tiếp nhận.');
+            }
+        };
+
+        ws.onclose = function() {
+            console.log('[Payment WS] Closed for order:', orderId);
+        };
+
+        ws.onerror = function(err) {
+            console.error('[Payment WS] Error:', err);
+        };
+
+    } catch (e) {
+        console.error('[Payment WS] Failed to create WebSocket connection:', e);
+    }
+}
+
 
 /* ===== UTILS ===== */
 if (typeof window.formatVND === 'undefined') {
