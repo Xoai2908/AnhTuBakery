@@ -43,6 +43,9 @@
                 <a href="wholesale.jsp" class="nav-link" id="nav-wholesale">Mua sỉ</a>
                 <a href="track.jsp" class="nav-link" id="nav-track">Tình trạng đơn</a>
                 <% if (customerUser != null) { %>
+                    <% if ("ADMIN".equals(customerUser.getRole())) { %>
+                        <a href="admin_dashboard.jsp" class="nav-link" id="nav-admin" style="color:var(--yellow-light) !important;font-weight:800;">Trang quản trị</a>
+                    <% } %>
                     <a href="profile.jsp" class="nav-link" id="nav-profile">Trang cá nhân</a>
                     <a href="../auth/logout" class="nav-link" style="color:var(--yellow-light) !important;font-weight:800;">Đăng xuất</a>
                 <% } %>
@@ -62,6 +65,9 @@
                 <a href="track.jsp" class="drawer-link">📋 Tình trạng đơn</a>
                 <% if (customerUser != null) { %>
                     <div style="padding:10px 15px;color:var(--cream);font-weight:800;font-size:0.95rem;border-top:1px solid var(--cream-dark)">Xin chào, <%= customerUser.getFullname() %></div>
+                    <% if ("ADMIN".equals(customerUser.getRole())) { %>
+                        <a href="admin_dashboard.jsp" class="drawer-link" style="color:var(--yellow-light) !important;font-weight:800;">⚙️ Trang quản trị</a>
+                    <% } %>
                     <a href="profile.jsp" class="drawer-link">👤 Trang cá nhân</a>
                     <a href="../auth/logout" class="drawer-link" style="color:var(--yellow-light) !important;font-weight:800;">🚪 Đăng xuất</a>
                 <% } %>
@@ -213,14 +219,6 @@
                     <div class="summary-line total" id="summary-total-line">
                         <span>TỔNG THANH TOÁN</span>
                         <span id="summary-total">0đ</span>
-                    </div>
-                    <div class="qr-note hidden" id="qr-note" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;">
-                        <p style="margin: 0; font-weight: 800; color: var(--brown-deep);">💳 Thanh toán bằng <strong>chuyển khoản QR</strong></p>
-                        <div class="qr-summary-display" style="margin: 6px 0;">
-                            <img id="qr-summary-image" src="" alt="Mã QR Thanh Toán" style="max-width: 160px; border: 2px solid var(--amber); border-radius: var(--radius-md); background: white; box-shadow: var(--shadow-card);" />
-                        </div>
-                        <p style="margin: 0; font-size: 0.85rem;">Nội dung CK: <code id="qr-summary-content" style="font-weight: 800; background: var(--amber); padding: 2px 6px; border-radius: 4px; color: var(--brown-bark);">ANHTUBAKERY KHACH</code></p>
-                        <p style="margin: 0; font-size: 0.78rem; color: var(--gray-mid); font-style: italic;">Quét mã chuyển khoản xong bấm "Xác nhận đặt hàng" phía dưới</p>
                     </div>
                 </div>
 

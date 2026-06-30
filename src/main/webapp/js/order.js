@@ -147,25 +147,6 @@ function renderSummary() {
     if (totalEl) {
         const total = subtotal + (currentDeliveryMethod === 'GIAO_HANG' ? currentShippingFee : 0);
         totalEl.textContent = formatVND(total);
-
-        // Update real-time summary QR code
-        const qrSummaryImg = document.getElementById('qr-summary-image');
-        const qrSummaryContent = document.getElementById('qr-summary-content');
-        if (qrSummaryImg && total > 0) {
-            const phone = document.getElementById('customer-phone')?.value.trim() || 'KHACH';
-            const contentVal = `ANHTUBAKERY ${phone}`;
-            if (qrSummaryContent) qrSummaryContent.textContent = contentVal;
-
-            const qrUrl = 'https://img.vietqr.io/image/BIDV-8821037502-compact2.png'
-                + '?amount=' + total
-                + '&addInfo=' + encodeURIComponent(contentVal)
-                + '&accountName=VO%20HO%20UYEN%20NHI';
-            qrSummaryImg.src = qrUrl;
-
-            document.getElementById('qr-note')?.classList.remove('hidden');
-        } else {
-            document.getElementById('qr-note')?.classList.add('hidden');
-        }
     }
 }
 

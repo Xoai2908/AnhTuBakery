@@ -31,6 +31,9 @@
             display: flex;
             min-height: 100vh;
         }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Nunito', sans-serif;
+        }
         
         /* SIDEBAR */
         .sidebar {
@@ -672,9 +675,24 @@
             filtered.forEach(order => {
                 const tr = document.createElement('tr');
                 
-                const methodBadge = order.deliveryMethod === 'TU_LAY' 
-                    ? '<span class="badge badge-pickup">🏠 Tự đến lấy</span>'
-                    : '<span class="badge badge-ship">🚴 Giao tận nhà</span>';
+                let methodBadge = '';
+                if (order.deliveryMethod === 'TU_LAY') {
+                    const pickupTimeMap = {
+                        SANG_SOM: '5:30–7:00',
+                        SANG: '7:00–9:00',
+                        TRUA: '11:00–13:00',
+                        CHIEU: '14:00–17:00'
+                    };
+                    const timeLabel = pickupTimeMap[order.pickupTime] || order.pickupTime || 'Tự do';
+                    methodBadge = `
+                        <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                            <span class="badge badge-pickup">🏠 Tự đến lấy</span>
+                            <span style="font-size:0.8rem; font-weight:800; color:var(--red-dark); background:rgba(185,28,28,0.06); padding:2px 8px; border-radius:4px; border:1px solid rgba(185,28,28,0.1);">⏱ ${timeLabel}</span>
+                        </div>
+                    `;
+                } else {
+                    methodBadge = '<span class="badge badge-ship">🚴 Giao tận nhà</span>';
+                }
 
                 // Dropdown status options
                 const statusOptions = `

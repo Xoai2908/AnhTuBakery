@@ -179,6 +179,10 @@
                 <a href="wholesale.jsp" class="nav-link active">Mua sỉ</a>
                 <a href="track.jsp" class="nav-link">Tình trạng đơn</a>
                 <% if (loggedUser != null) { %>
+                    <% if ("ADMIN".equals(loggedUser.getRole())) { %>
+                        <a href="admin_dashboard.jsp" class="nav-link" style="color:var(--yellow-light) !important;font-weight:800;">Trang quản trị</a>
+                    <% } %>
+                    <a href="profile.jsp" class="nav-link">Trang cá nhân</a>
                     <a href="../auth/logout" class="nav-link" style="color:var(--yellow-light) !important;font-weight:800;">Đăng xuất</a>
                 <% } %>
             </nav>
@@ -197,6 +201,10 @@
                 <a href="track.jsp" class="drawer-link">📋 Tình trạng đơn</a>
                 <% if (loggedUser != null) { %>
                     <div style="padding:10px 15px;color:var(--cream);font-weight:800;font-size:0.95rem;border-top:1px solid var(--cream-dark)">Xin chào, <%= loggedUser.getFullname() %></div>
+                    <% if ("ADMIN".equals(loggedUser.getRole())) { %>
+                        <a href="admin_dashboard.jsp" class="drawer-link" style="color:var(--yellow-light) !important;font-weight:800;">⚙️ Trang quản trị</a>
+                    <% } %>
+                    <a href="profile.jsp" class="drawer-link">👤 Trang cá nhân</a>
                     <a href="../auth/logout" class="drawer-link" style="color:var(--yellow-light) !important;font-weight:800;">🚪 Đăng xuất</a>
                 <% } %>
             </nav>

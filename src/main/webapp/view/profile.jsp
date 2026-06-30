@@ -150,6 +150,9 @@
                 <a href="wholesale.jsp" class="nav-link" id="nav-wholesale">Mua sỉ</a>
                 <a href="track.jsp" class="nav-link" id="nav-track">Tình trạng đơn</a>
                 <a href="profile.jsp" class="nav-link active" id="nav-profile">Trang cá nhân</a>
+                <% if ("ADMIN".equals(loggedUser.getRole())) { %>
+                    <a href="admin_dashboard.jsp" class="nav-link" id="nav-admin" style="color:var(--yellow-light) !important;font-weight:800;">Trang quản trị</a>
+                <% } %>
                 <a href="../auth/logout" class="nav-link" style="color:var(--yellow-light) !important;font-weight:800;">Đăng xuất</a>
             </nav>
             <button class="hamburger" id="hamburger-btn" aria-label="Mở menu" aria-expanded="false">
@@ -166,6 +169,9 @@
                 <a href="wholesale.jsp" class="drawer-link">📦 Mua sỉ</a>
                 <a href="track.jsp" class="drawer-link">📋 Tình trạng đơn</a>
                 <a href="profile.jsp" class="drawer-link active">👤 Trang cá nhân</a>
+                <% if ("ADMIN".equals(loggedUser.getRole())) { %>
+                    <a href="admin_dashboard.jsp" class="drawer-link" style="color:var(--yellow-light) !important;font-weight:800;">⚙️ Trang quản trị</a>
+                <% } %>
                 <a href="../auth/logout" class="drawer-link" style="color:var(--yellow-light) !important;font-weight:800;">🚪 Đăng xuất</a>
             </nav>
         </div>
