@@ -9,6 +9,30 @@
         response.sendRedirect("admin_login.jsp?required=1&redirect=wholesale.jsp");
         return;
     }
+
+    com.mycompany.bakery.business.Agent currentAgent = null;
+    com.mycompany.bakery.data.AgentDAO agentDAO = new com.mycompany.bakery.data.AgentDAO();
+    
+    // Check if the logged user's phone or username matches an active agent
+    String userPhone = loggedUser.getPhone();
+    if (userPhone == null || userPhone.trim().isEmpty()) {
+        userPhone = loggedUser.getUsername();
+    }
+    
+    if (userPhone != null && !userPhone.trim().isEmpty()) {
+        currentAgent = agentDAO.getAgentByPhone(userPhone);
+        if (currentAgent != null && "ACTIVE".equals(currentAgent.getStatus())) {
+            // Auto-promote session to AGENT if it was CUSTOMER
+            if (!"AGENT".equals(loggedUser.getRole())) {
+                loggedUser.setRole("AGENT");
+                loggedUser.setFullname(currentAgent.getShopName() + " (" + currentAgent.getName() + ")");
+                loggedUser.setUsername(currentAgent.getPhone());
+                session.setAttribute("user", loggedUser);
+            }
+        } else {
+            currentAgent = null; // Only treat as active agent
+        }
+    }
 %>
 <!DOCTYPE html>
 <html lang="vi">
@@ -20,6 +44,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Nunito:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/order.css">
     <style>
         .wholesale-page { padding: var(--space-2xl) 0 var(--space-3xl); }
         .ws-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2xl); margin-bottom: var(--space-2xl); }
@@ -280,6 +305,48 @@
             </div>
 
             <!-- REGISTRATION & LOGIN -->
+            <% if (currentAgent != null) { %>
+            <div class="ws-grid" id="order">
+                <div class="ws-section" id="ws-agent-info">
+                    <h2 class="ws-section-title">👤 Thông tin Đại lý</h2>
+                    <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+                        <div class="ws-alert info" style="font-size: 0.95rem; line-height: 1.8;">
+                            <div>
+                                <span style="font-size: 1.2rem; margin-right: 4px;">🏪</span> <strong>Tên đại lý:</strong> <%= currentAgent.getShopName() %><br>
+                                👤 <strong>Người đại diện:</strong> <%= currentAgent.getName() %><br>
+                                📞 <strong>Số điện thoại:</strong> <%= currentAgent.getPhone() %><br>
+                                📍 <strong>Địa chỉ giao hàng:</strong> <%= currentAgent.getAddress() %><br>
+                                🚚 <strong>Vùng phục vụ:</strong> Trong phạm vi 5km (Giao hàng miễn phí)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:var(--space-lg)">
+                    <!-- Quick Order Panel -->
+                    <div class="ws-section" id="ws-order-panel">
+                        <h2 class="ws-section-title">🛒 Đặt đơn hàng sỉ</h2>
+                        <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+                            <p style="font-size:0.95rem;color:var(--brown-deep);font-weight:600;">Hệ thống sẽ tạo đơn hàng tự động dựa trên số lượng mì ổ bạn nhập ở mục "Tính giá nhanh" phía trên.</p>
+                            <div class="form-group" style="display: flex; flex-direction: column; gap: var(--space-xs);">
+                                <label class="form-label" for="ws-order-note">Ghi chú đơn hàng (Không bắt buộc)</label>
+                                <textarea id="ws-order-note" class="form-input" placeholder="Ví dụ: Giao trước 7h sáng, mì giòn..." rows="3" style="resize:vertical;font-family:inherit;padding:0.75rem 1rem;border:2px solid var(--cream-dark);border-radius:var(--radius-md);width:100%;box-sizing:border-box;"></textarea>
+                            </div>
+                            <button type="button" class="btn btn-primary" style="width:100%; font-size:1.1rem; font-weight:800; padding:12px;" onclick="placeAgentWholesaleOrder()">✅ Tiến hành đặt hàng →</button>
+                        </div>
+                    </div>
+
+                    <!-- Info box -->
+                    <div class="ws-section">
+                        <h2 class="ws-section-title">ℹ️ Lưu ý quan trọng</h2>
+                        <div style="display:flex;flex-direction:column;gap:var(--space-sm)">
+                            <div class="ws-alert info"><span>📦</span><div>Đặt sỉ tối thiểu <strong>50 ổ/đơn</strong>. Đơn dưới 50 ổ sẽ không được xử lý.</div></div>
+                            <div class="ws-alert info"><span>🚚</span><div>Giao trong <strong>bán kính 5km</strong> từ lò bánh. Kiểm tra vị trí trước khi đăng ký.</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <% } else { %>
             <div class="ws-grid" id="order">
                 <div class="ws-section" id="ws-register">
                     <h2 class="ws-section-title">📝 Đăng ký đại lý mới</h2>
@@ -353,6 +420,7 @@
                     </div>
                 </div>
             </div>
+            <% } %>
 
             <!-- SUCCESS / PENDING message -->
             <div class="hidden" id="reg-success-box" style="text-align:center;padding:var(--space-3xl)">
@@ -360,6 +428,103 @@
                 <h2 style="font-family:var(--font-display);font-size:2rem;color:var(--green-ok);margin-bottom:var(--space-md)">Đăng ký thành công!</h2>
                 <p style="color:var(--brown-deep);font-weight:600;margin-bottom:var(--space-sm)">Thông tin đã được ghi nhận. Admin sẽ liên hệ xác nhận qua <strong>0779 409 567</strong></p>
                 <p style="color:var(--gray-mid);font-size:0.9rem">Sau khi tài khoản được kích hoạt, bạn có thể đăng nhập và bắt đầu đặt đơn sỉ.</p>
+            </div>
+
+            <!-- SUCCESS STATE FOR AGENT ORDER -->
+            <div class="success-panel hidden" id="success-panel">
+                <div class="container">
+                    <div class="success-box" style="border: 2.5px solid var(--green-ok); box-shadow: 0 20px 45px rgba(5, 150, 105, 0.12), var(--shadow-card); background: linear-gradient(135deg, var(--white) 0%, var(--cream) 100%); border-radius: var(--radius-xl); padding: var(--space-3xl); text-align: center; max-width: 540px; margin: 0 auto;">
+                        <div class="success-icon" style="font-size: 3rem; margin-bottom: var(--space-md);">🎉</div>
+                        <h2 class="success-title" style="font-family: var(--font-display); font-size: 2rem; color: var(--green-ok); margin-bottom: var(--space-md);">Đặt hàng sỉ thành công!</h2>
+                        <p class="success-msg" style="color: var(--brown-deep); font-weight: 600; margin-bottom: var(--space-sm);">Cảm ơn đại lý đã hợp tác cùng Bánh Mì Anh Tú!</p>
+                        <div class="success-order-id" style="background: var(--cream-dark); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); display: inline-block; font-size: 1.1rem; color: var(--brown-bark); margin-bottom: var(--space-md); font-weight: 700;">
+                            Mã đơn hàng sỉ: <strong id="order-id-display" style="color: var(--red-dark);">DH000000</strong>
+                        </div>
+                        <p class="success-sub" style="color: var(--gray-mid); font-size: 0.9rem; margin-bottom: var(--space-lg); line-height: 1.6;">Đơn sỉ đã được ghi nhận tự động và chuyển sang bộ phận chuẩn bị. Giao hàng miễn phí trong bán kính 5km.</p>
+                        <div class="success-actions" style="display: flex; gap: var(--space-md); justify-content: center;">
+                            <a href="track.jsp" class="btn btn-primary btn-lg" style="font-weight: 800;">📋 Tình trạng đơn hàng</a>
+                            <a href="index.jsp" class="btn btn-outline btn-lg" style="font-weight: 800;">← Về trang chủ</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== CONFIRMATION & PAYMENT MODAL ===== -->
+            <div class="modal-overlay hidden" id="confirm-modal-overlay">
+                <div class="confirm-modal" id="confirm-modal" role="dialog" aria-modal="true" aria-label="Xác nhận đơn hàng sỉ">
+                    <style>
+                        @keyframes modal-spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                        .modal-spinner {
+                            border: 2px solid var(--cream-dark);
+                            border-top: 2px solid var(--amber);
+                            border-radius: 50%;
+                            width: 18px;
+                            height: 18px;
+                            animation: modal-spin 1.2s linear infinite;
+                        }
+                        .hidden-state {
+                            display: none !important;
+                        }
+                    </style>
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="modal-title">✅ Xác Nhận Đơn Hàng Sỉ</h2>
+                        <button class="modal-close-btn" id="modal-close-btn" onclick="closeConfirmModal()">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- State 1: Confirm Details -->
+                        <div id="modal-state-confirm">
+                            <div class="modal-summary" id="modal-summary">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- State 2: Payment/QR (Hidden initially) -->
+                        <div id="modal-state-payment" class="hidden-state">
+                            <div class="qr-section">
+                                <h3 class="qr-title" style="font-family: var(--font-display); font-size: 1.1rem; color: var(--brown-deep); margin-bottom: var(--space-md);">📱 Thanh toán chuyển khoản sỉ</h3>
+                                <div class="qr-display" style="display: flex; justify-content: center; margin-bottom: var(--space-md);">
+                                    <img id="qr-image" src="" alt="Mã QR Thanh Toán" style="max-width: 230px; border: 2.5px solid var(--amber); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);" />
+                                </div>
+                                <div class="qr-info" style="background: var(--cream); border-radius: var(--radius-md); padding: var(--space-md); border: 1px solid var(--amber);">
+                                    <div class="qr-info-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) 0; border-bottom: 1px dashed var(--cream-dark); font-size: 0.9rem;">
+                                        <span style="color: var(--gray-mid); font-weight: 500;">Ngân hàng:</span>
+                                        <strong>BIDV (PGD An Cựu)</strong>
+                                    </div>
+                                    <div class="qr-info-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) 0; border-bottom: 1px dashed var(--cream-dark); font-size: 0.9rem;">
+                                        <span style="color: var(--gray-mid); font-weight: 500;">Chủ tài khoản:</span>
+                                        <strong>HO KINH DOANH VO VAN TRU</strong>
+                                    </div>
+                                    <div class="qr-info-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) 0; border-bottom: 1px dashed var(--cream-dark); font-size: 0.9rem;">
+                                        <span style="color: var(--gray-mid); font-weight: 500;">Số tài khoản:</span>
+                                        <strong>8888824977</strong>
+                                    </div>
+                                    <div class="qr-info-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) 0; border-bottom: 1px dashed var(--cream-dark); font-size: 0.9rem;">
+                                        <span style="color: var(--gray-mid); font-weight: 500;">Số tiền:</span>
+                                        <strong id="qr-amount" class="qr-amount" style="color: var(--red-dark); font-size: 1.2rem;">0đ</strong>
+                                    </div>
+                                    <div class="qr-info-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) 0; border-bottom: none; font-size: 0.9rem;">
+                                        <span style="color: var(--gray-mid); font-weight: 500;">Nội dung CK:</span>
+                                        <strong id="qr-content">ANHTUBAKERY DHMOI</strong>
+                                    </div>
+                                    
+                                    <div style="display:flex; justify-content:center; align-items:center; gap: 8px; margin-top: 15px; padding: 12px; background: rgba(245,158,11,0.08); border-radius: 8px; border: 1.5px solid rgba(245,158,11,0.15);">
+                                        <div class="modal-spinner"></div>
+                                        <span style="font-size:0.85rem; font-weight:800; color:var(--brown-deep);">Đang chờ thanh toán tự động...</span>
+                                    </div>
+                                    
+                                    <p class="qr-note-text" style="margin-top: 12px; font-size: 0.82rem; color: var(--gray-mid); font-weight: 500; line-height: 1.5; font-style: italic;">Vui lòng chuyển khoản đúng số tiền và nội dung chuyển khoản ở trên. Giao dịch sẽ được hệ thống kiểm tra và tự động xác nhận ngay lập tức.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" id="modal-footer" style="display: flex; gap: var(--space-md); padding: var(--space-lg); border-top: 1px solid var(--cream-dark);">
+                        <button class="btn btn-outline" style="flex: 1; justify-content: center;" onclick="closeConfirmModal()">← Hủy</button>
+                        <button class="btn btn-primary" id="btn-place-order" style="flex: 1; justify-content: center; font-weight: 800;" onclick="placeOrder()">✅ Xác nhận & Đặt hàng sỉ</button>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -380,6 +545,13 @@
 
     <div class="toast" id="toast" role="alert"></div>
     <script>
+        const agentName = <%= currentAgent != null ? "'" + currentAgent.getName().replace("'", "\\'") + "'" : "''" %>;
+        const agentPhone = <%= currentAgent != null ? "'" + currentAgent.getPhone().replace("'", "\\'") + "'" : "''" %>;
+        const agentShopName = <%= currentAgent != null ? "'" + currentAgent.getShopName().replace("'", "\\'") + "'" : "''" %>;
+        const agentAddress = <%= currentAgent != null ? "'" + currentAgent.getAddress().replace("'", "\\'") + "'" : "''" %>;
+        const agentLat = <%= currentAgent != null ? currentAgent.getLatitude() : "null" %>;
+        const agentLng = <%= currentAgent != null ? currentAgent.getLongitude() : "null" %>;
+
         /* Wholesale price calculator */
         const BAKERY_LAT = 16.447500, BAKERY_LNG = 107.596100;
 
@@ -491,7 +663,7 @@
 
             const searchQuery = address.includes('Huế') || address.includes('Hue')
                 ? address + ', Việt Nam'
-                : address + ', Huế, Việt Nam';
+                : address + ', Thừa Thiên Huế, Việt Nam';
 
             var urlParts = [];
             urlParts.push('https://nominatim.openstreetmap.org/search');
@@ -513,6 +685,21 @@
                     const result = data[0];
                     const lat = parseFloat(result.lat).toFixed(6);
                     const lng = parseFloat(result.lon).toFixed(6);
+
+                    // Check if returned result is generic (district, city, province boundary)
+                    const isGeneric = ['country', 'state', 'county', 'district', 'municipality', 'city', 'province', 'region'].includes(result.addresstype) || 
+                                      result.type === 'administrative';
+
+                    if (isGeneric) {
+                        resetGeocodeState();
+                        if (statusEl) {
+                            statusEl.classList.remove('hidden', 'geocode-loading', 'geocode-success');
+                            statusEl.classList.add('geocode-error');
+                            statusIcon.textContent = '⚠️';
+                            statusText.innerHTML = '<strong>' + result.display_name + '</strong><br><span style="color:var(--red-dark); font-weight:700;">Địa chỉ quá chung chung. Vui lòng nhập cụ thể số nhà, tên đường, thôn/xóm...</span>';
+                        }
+                        return;
+                    }
 
                     document.getElementById('reg-lat').value = lat;
                     document.getElementById('reg-lng').value = lng;
@@ -651,6 +838,194 @@
             o?.addEventListener('click', close);
             c?.addEventListener('click', close);
         });
+
+        /* Agent wholesale order flow */
+        let currentQty = 0;
+        let currentTotalPrice = 0;
+        let currentUnitPrice = 0;
+        let activePaymentSocket = null;
+
+        function placeAgentWholesaleOrder() {
+            const qtyInput = document.getElementById('ws-qty');
+            const qty = parseInt(qtyInput ? qtyInput.value : 0) || 0;
+            if (qty < 50) {
+                showToast('⚠️ Đặt sỉ tối thiểu 50 ổ. Vui lòng nhập số lượng hợp lệ.', 'warn');
+                qtyInput?.focus();
+                return;
+            }
+            openConfirmModal(qty);
+        }
+
+        function openConfirmModal(qty) {
+            currentQty = qty;
+            currentUnitPrice = qty <= 199 ? 1500 : 1300;
+            currentTotalPrice = qty * currentUnitPrice;
+
+            document.getElementById('modal-summary').innerHTML = `
+                <div class="modal-info-row"><span class="modal-info-label">👤 Khách hàng (Đại lý)</span><span class="modal-info-val">${agentShopName} (${agentName})</span></div>
+                <div class="modal-info-row"><span class="modal-info-label">📞 Điện thoại</span><span class="modal-info-val">${agentPhone}</span></div>
+                <div class="modal-info-row"><span class="modal-info-label">📍 Địa chỉ giao hàng</span><span class="modal-info-val">${agentAddress}</span></div>
+                <div class="modal-info-row"><span class="modal-info-label">🥖 Sản phẩm</span><span class="modal-info-val">Mì ổ không nhân (Sỉ)</span></div>
+                <div class="modal-info-row"><span class="modal-info-label">🔢 Số lượng</span><span class="modal-info-val">${qty.toLocaleString('vi-VN')} ổ</span></div>
+                <div class="modal-info-row"><span class="modal-info-label">💵 Đơn giá sỉ</span><span class="modal-info-val">${currentUnitPrice.toLocaleString('vi-VN')}đ/ổ</span></div>
+                <div class="modal-info-row"><span class="modal-info-label">🚚 Phí ship</span><span class="modal-info-val">Miễn phí (sỉ trong 5km)</span></div>
+                <div class="modal-info-row"><span class="modal-info-label" style="font-weight:800">TỔNG THANH TOÁN</span><span class="modal-info-val highlight" style="color:var(--red-dark); font-size:1.1rem">${currentTotalPrice.toLocaleString('vi-VN')}đ</span></div>
+            `;
+
+            // Reset modal state
+            document.getElementById('modal-state-confirm')?.classList.remove('hidden-state');
+            document.getElementById('modal-state-payment')?.classList.add('hidden-state');
+            document.getElementById('modal-close-btn')?.classList.remove('hidden-state');
+            document.getElementById('modal-footer')?.classList.remove('hidden-state');
+            document.getElementById('modal-title').textContent = "✅ Xác Nhận Đơn Hàng Sỉ";
+
+            const overlay = document.getElementById('confirm-modal-overlay');
+            overlay?.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal-overlay')?.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        function placeOrder() {
+            const btn = document.getElementById('btn-place-order');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang xử lý...'; }
+
+            const note = document.getElementById('ws-order-note')?.value.trim() || '';
+
+            const orderData = {
+                customerName: agentShopName + " (" + agentName + ")",
+                customerPhone: agentPhone,
+                deliveryMethod: "GIAO_HANG",
+                deliveryAddress: agentAddress,
+                pickupTime: "",
+                note: note,
+                latitude: agentLat,
+                longitude: agentLng,
+                subtotal: currentTotalPrice,
+                shippingFee: 0,
+                total: currentTotalPrice,
+                items: [
+                    {
+                        name: "Mì ổ không nhân (Sỉ)",
+                        qty: currentQty,
+                        price: currentUnitPrice
+                    }
+                ]
+            };
+
+            fetch('../resources/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(orderData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => { throw new Error(text || 'Đặt hàng thất bại'); });
+                }
+                return response.json();
+            })
+            .then(data => {
+                const orderId = data.id;
+
+                // QR payment content
+                document.getElementById('qr-amount').textContent = currentTotalPrice.toLocaleString('vi-VN') + 'đ';
+                const contentVal = `ANHTUBAKERY ${orderId}`;
+                document.getElementById('qr-content').textContent = contentVal;
+
+                // QR VietQR image URL
+                const qrImageEl = document.getElementById('qr-image');
+                if (qrImageEl) {
+                    const qrUrl = 'https://img.vietqr.io/image/BIDV-8888824977-compact2.png'
+                        + '?amount=' + currentTotalPrice
+                        + '&addInfo=' + encodeURIComponent(contentVal)
+                        + '&accountName=HO%20KINH%20DOANH%20VO%20VAN%20TRU';
+                    qrImageEl.src = qrUrl;
+                }
+
+                // Switch Modal to state 2: QR Payment
+                document.getElementById('modal-state-confirm')?.classList.add('hidden-state');
+                document.getElementById('modal-state-payment')?.classList.remove('hidden-state');
+                document.getElementById('modal-title').textContent = "📱 Quét Mã Thanh Toán";
+                document.getElementById('modal-close-btn')?.classList.add('hidden-state');
+                document.getElementById('modal-footer')?.classList.add('hidden-state');
+
+                if (btn) { btn.disabled = false; btn.textContent = '✅ Xác nhận & Đặt hàng sỉ'; }
+
+                // Connect WebSocket
+                connectPaymentWebSocket(orderId);
+            })
+            .catch(error => {
+                console.error('Error placing order:', error);
+                showToast('⚠️ Lỗi: ' + error.message, 'warn');
+                if (btn) { btn.disabled = false; btn.textContent = '✅ Xác nhận & Đặt hàng sỉ'; }
+            });
+        }
+
+        function connectPaymentWebSocket(orderId) {
+            if (activePaymentSocket) {
+                try { activePaymentSocket.close(); } catch(e) {}
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const pathParts = window.location.pathname.split('/view/');
+            const contextPath = pathParts[0] || '';
+            const wsUrl = protocol + window.location.host + contextPath + '/order-ws/' + encodeURIComponent(orderId);
+
+            console.log('[Payment WS] Connecting to:', wsUrl);
+
+            try {
+                const ws = new WebSocket(wsUrl);
+                activePaymentSocket = ws;
+
+                ws.onmessage = function(event) {
+                    const status = event.data;
+                    console.log('[Payment WS] Message received:', status);
+                    
+                    if (status === 'PAID') {
+                        ws.close();
+                        activePaymentSocket = null;
+
+                        closeConfirmModal();
+
+                        // Hide main layout elements and show success panel
+                        document.getElementById('order-id-display').textContent = orderId;
+                        
+                        // Hide existing calculation sections and registration/agent forms
+                        const calcSection = document.getElementById('ws-calc');
+                        const priceTableSection = document.getElementById('ws-price-table');
+                        const orderSection = document.getElementById('order');
+                        
+                        if (calcSection) calcSection.classList.add('hidden');
+                        if (priceTableSection) priceTableSection.classList.add('hidden');
+                        if (orderSection) orderSection.classList.add('hidden');
+
+                        const successPanel = document.getElementById('success-panel');
+                        if (successPanel) {
+                            successPanel.classList.remove('hidden');
+                            successPanel.scrollIntoView({ behavior: 'smooth' });
+                        }
+
+                        showToast('🎉 Thanh toán thành công! Đơn sỉ của bạn đã được tiếp nhận.');
+                    }
+                };
+
+                ws.onclose = function() {
+                    console.log('[Payment WS] Closed for order:', orderId);
+                };
+
+                ws.onerror = function(err) {
+                    console.error('[Payment WS] Error:', err);
+                };
+
+            } catch (e) {
+                console.error('[Payment WS] Failed to create WebSocket connection:', e);
+            }
+        }
 
         let toastTimer;
         function showToast(msg, type='success') {

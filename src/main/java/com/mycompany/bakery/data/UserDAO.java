@@ -39,7 +39,25 @@ public class UserDAO {
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return mapUser(rs);
+                    User user = mapUser(rs);
+                    // Nếu là AGENT, kiểm tra trạng thái kích hoạt trong bảng agents
+                    if ("AGENT".equals(user.getRole())) {
+                        String sqlAgent = "SELECT status FROM agents WHERE phone = ?";
+                        try (PreparedStatement psAgent = conn.prepareStatement(sqlAgent)) {
+                            psAgent.setString(1, user.getUsername());
+                            try (ResultSet rsAgent = psAgent.executeQuery()) {
+                                if (rsAgent.next()) {
+                                    String status = rsAgent.getString("status");
+                                    if (!"ACTIVE".equals(status)) {
+                                        return null; // Không cho phép đăng nhập nếu chưa ACTIVE
+                                    }
+                                } else {
+                                    return null; // Không tìm thấy thông tin đại lý
+                                }
+                            }
+                        }
+                    }
+                    return user;
                 }
             }
         } catch (Exception e) {

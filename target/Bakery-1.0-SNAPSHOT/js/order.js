@@ -253,10 +253,10 @@ function geocodeFromAddress(address) {
         statusText.textContent = 'Đang tra cứu vị trí...';
     }
 
-    // Append context for better accuracy
+    // Append context for better accuracy (covering entire Thừa Thiên Huế province)
     const searchQuery = address.includes('Huế') || address.includes('Hue')
         ? address + ', Việt Nam'
-        : address + ', Huế, Việt Nam';
+        : address + ', Thừa Thiên Huế, Việt Nam';
 
     var urlParts = [];
     urlParts.push('https://nominatim.openstreetmap.org/search');
@@ -286,6 +286,22 @@ function geocodeFromAddress(address) {
             const lng = parseFloat(result.lon).toFixed(6);
 
             console.log('[Geocode] Found:', lat, lng, result.display_name);
+
+            // Check if returned result is generic (district, city, province boundary)
+            const isGeneric = ['country', 'state', 'county', 'district', 'municipality', 'city', 'province', 'region'].includes(result.addresstype) || 
+                              result.type === 'administrative';
+
+            if (isGeneric) {
+                console.warn('[Geocode] Rejected generic address:', result.display_name);
+                resetGeocodeState();
+                if (statusEl) {
+                    statusEl.classList.remove('hidden', 'geocode-loading', 'geocode-success');
+                    statusEl.classList.add('geocode-error');
+                    statusIcon.textContent = '⚠️';
+                    statusText.innerHTML = '<strong>' + result.display_name + '</strong><br><span style="color:var(--red-dark); font-weight:700;">Địa chỉ quá chung chung. Vui lòng nhập cụ thể số nhà, tên đường, thôn/xóm...</span>';
+                }
+                return;
+            }
 
             document.getElementById('lat').value = lat;
             document.getElementById('lng').value = lng;

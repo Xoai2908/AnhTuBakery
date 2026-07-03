@@ -9,9 +9,9 @@
 *   **Phân hệ Bán Lẻ (Quán Bánh Mì Của Mẹ)**: Bán lẻ các món ăn sáng đường phố bao gồm bánh mì kẹp nhân (heo quay, thịt nướng, trứng...), xôi nóng các loại và nước uống tự nấu (sữa đậu nành tươi). Hệ thống hỗ trợ khách đặt hàng online với hai tùy chọn nhận hàng: **Tự đến lấy tại quán** (hẹn giờ nhận món) hoặc **Giao hàng tận nơi** (phí vận chuyển tính lũy tiến theo số km thực tế).
 
 ### Các Nhóm Đối Tượng Sử Dụng (Actors):
-1.  **Quản trị viên (Admin)**: Người vận hành tiệm bánh (Mẹ hoặc người thân). Admin quản lý toàn bộ vòng đời đơn hàng, cập nhật trạng thái chế biến thời gian thực, duyệt tài khoản đại lý sỉ mới, bật/tắt hiển thị món ăn trên thực đơn và xem tổng hợp số liệu doanh thu trực quan.
+1.  **Quản trị viên (Admin)**: Người vận hành tiệm bánh (Mẹ hoặc người thân). Admin quản lý toàn bộ vòng đời đơn hàng, cập nhật trạng thái chế biến thời gian thực, duyệt tài khoản đại lý sỉ mới, bật/tắt hiển thị món ăn trên thực đơn và theo dõi doanh thu trực quan.
 2.  **Đại lý (Agent)**: Khách hàng mua sỉ mì ổ với số lượng lớn ($\ge 50$ ổ). Đại lý đăng ký tài khoản trực tuyến cung cấp tọa độ GPS, chờ Admin xác minh kích hoạt mới có thể đăng nhập lên đơn sỉ.
-3.  **Khách lẻ (Customer)**: Người mua bánh mì kẹp, xôi, nước uống. Khách có thể đặt hàng trực tiếp (không bắt buộc đăng nhập) hoặc tạo tài khoản khách hàng lẻ để lưu lịch sử giao dịch và thông tin cá nhân.
+3.  **Khách lẻ (Customer)**: Người mua bánh mì kẹp, xôi, nước uống. Khách có thể đặt hàng trực tiếp (không bắt buộc đăng nhập) hoặc tạo tài khoản khách hàng lẻ để tiện lưu trữ lịch sử giao dịch và tự động đồng bộ đơn hàng.
 
 ---
 
@@ -20,7 +20,7 @@
 > [!IMPORTANT]
 > **Lưu ý quan trọng về sự khác biệt giữa thiết kế lý thuyết và mã nguồn:**
 > Các tài liệu thiết kế ban đầu (`01.system_architecture.md` -> `05.admin_analystic.md`) mô tả dự án sử dụng *Spring Boot, Spring Data JPA, và Server-Sent Events (SSE)*.
-> Tuy nhiên, trong mã nguồn thực tế, dự án được xây dựng bằng công nghệ **Jakarta EE 11 (Servlet/JSP)** chạy trên các Servlet Container (như Apache Tomcat 11) kết hợp với **Weld CDI** để quản lý Dependency Injection và giao tiếp với CSDL qua **JDBC thuần (DriverManager/DataSource)**. Thay vì dùng SSE, hệ thống sử dụng **WebSocket** để cập nhật trạng thái đơn hàng thời gian thực.
+> Tuy nhiên, trong mã nguồn thực tế, dự án được xây dựng bằng công nghệ **Jakarta EE 11 (Servlet/JSP)** chạy trên các Servlet Container (như Apache Tomcat 11) kết hợp với **Weld CDI** để quản lý Dependency Injection và giao tiếp với CSDL qua **JDBC thuần (DriverManager/DataSource)**. Thay vì dùng SSE, hệ thống sử dụng **WebSocket** để cập nhật trạng thái đơn hàng thời gian thực ở cả hai phía (Khách hàng & Admin).
 > Đồng thời, các tính toán về khoảng cách (Haversine) và phí vận chuyển được thực hiện ở client-side bằng Javascript để giảm tải cho server, sau đó truyền kết quả lưu trữ vào backend qua các Servlet API.
 
 ### Sơ đồ kiến trúc thực tế của hệ thống:
@@ -30,14 +30,15 @@
 │   - JSP rendering view (index, menu, order, track, wholesale, profile) │
 │   - Client logic (JavaScript): Cart management, Geolocation API,      │
 │     Haversine Distance, Progressive Shipping Fee Calculation          │
-│   - WebSocket client (track.jsp connection using standard WS API)      │
+│   - WebSocket Client (track.jsp kết nối /order-ws/{id} để nhận status) │
+│   - Admin WebSocket Client (admin_dashboard.jsp kết nối /admin-ws)      │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │ HTTP API / JSON / WebSocket Connection
 ┌──────────────────────────────────▼─────────────────────────────────────┐
 │                          CONTROLLER LAYER                              │
 │   - Servlets: AuthServlet, OrderServlet, AgentServlet, ProductServlet, │
-│     AdminCustomerServlet                                               │
-│   - WebSocket Endpoint: OrderWebSocket (@ServerEndpoint)               │
+│     AdminCustomerServlet, PaymentWebhookServlet                        │
+│   - WebSocket Endpoints: OrderWebSocket, AdminWebSocket                │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │ Jakarta CDI (@Inject)
 ┌──────────────────────────────────▼─────────────────────────────────────┐
@@ -66,7 +67,9 @@
     *   *Khối MySQL & H2*: Sử dụng cú pháp `CREATE TABLE IF NOT EXISTS`, kiểu dữ liệu `AUTO_INCREMENT`, `DOUBLE` và `BOOLEAN`.
     *   *Khối MS SQL Server*: Sử dụng cú pháp kiểm tra `IF OBJECT_ID('table', 'U') IS NULL`, kiểu dữ liệu `IDENTITY(1,1)`, `NVARCHAR`, `DOUBLE PRECISION` và `BIT`.
     *   Hệ thống sẽ tự động thêm/bù đắp cột (ví dụ: `ALTER TABLE orders ADD note VARCHAR(500)`) khi phát hiện CSDL cũ thiếu trường, bảo toàn tính tương thích ngược.
-4.  **Jakarta WebSocket 2.1**: Lớp `OrderWebSocket` được ánh xạ tại `/order-ws/{orderId}`. Kết nối được quản lý thông qua cấu trúc `ConcurrentHashMap` lưu trữ tập hợp phiên làm việc (`Set<Session>`) cho từng ID đơn hàng cụ thể, cho phép một khách hàng mở nhiều tab hoặc thiết bị vẫn nhận được thông tin cập nhật đồng bộ cùng lúc.
+4.  **Jakarta WebSocket 2.1**: Hệ thống cung cấp hai kênh WebSocket giao tiếp thời gian thực:
+    *   `OrderWebSocket` (`/order-ws/{orderId}`): Sử dụng cấu trúc `ConcurrentHashMap` lưu trữ tập hợp phiên làm việc (`Set<Session>`) cho từng ID đơn hàng cụ thể, cho phép đẩy trạng thái đơn hàng (PAID, PREPARING, READY...) xuống trình duyệt khách lẻ thời gian thực.
+    *   `AdminWebSocket` (`/admin-ws`): Lưu giữ danh sách toàn bộ các phiên quản trị viên đang mở. Cho phép gửi tín hiệu làm mới (`"refresh"`) từ xa để tự động cập nhật dữ liệu mà không cần tải lại trang.
 5.  **Jakarta JSON Binding (JSON-B)**: Sử dụng `JsonbBuilder.create()` làm thư viện chính để tuần tự hóa (serialize) các thực thể Java thành chuỗi JSON và ngược lại, giao tiếp trực tiếp với client thông qua Fetch API của Javascript.
 
 ---
@@ -226,7 +229,7 @@ $$\text{Savings} = (q \times 1.500) - (q \times 1.300) = q \times 200\text{ VNĐ
 
 ---
 
-## 5. LUỒNG XỬ LÝ NGHIỆP VỤ & CÁC THAY ĐỔI MỚI NHẤT
+## 5. LUỒNG XỬ LÝ NGHIỆP VỤ & CÁC CẬP NHẬT MỚI NHẤT
 
 ### 5.1 Quy Trình Đăng Ký & Kích Hoạt Đại Lý (Wholesale Agent)
 ```
@@ -257,52 +260,50 @@ $$\text{Savings} = (q \times 1.500) - (q \times 1.300) = q \times 200\text{ VNĐ
 
 ---
 
-### 5.3 Chi Tiết Các Thay Đổi Cập Nhật Code Mới Nhất
-Mã nguồn dự án vừa qua đã được tối ưu hóa và bổ sung các tính năng quan trọng sau:
+### 5.3 Chi Tiết Các Thay Đổi Cập Nhật Mới Nhất Trong Code
+Mã nguồn dự án đã được cải tiến toàn diện với việc tích hợp thanh toán tự động, liên kết tài khoản đồng bộ, và mở rộng hệ thống WebSocket:
 
-1.  **Chuyển Đổi Bản Đồ Sang Khung Giờ Thực Tế (Pickup Time Slot Mapping)**:
-    Khi khách lẻ chọn hình thức tự đến lấy (`TU_LAY`), thông tin giờ hẹn được lưu dưới các mã khóa (`SANG_SOM`, `SANG`, `TRUA`, `CHIEU`). Tại trang Admin Dashboard ([admin_dashboard.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/admin_dashboard.jsp)), hệ thống đã được cập nhật đoạn mã phân tích dữ liệu động:
-    ```javascript
-    const pickupTimeMap = {
-        SANG_SOM: '5:30–7:00',
-        SANG: '7:00–9:00',
-        TRUA: '11:00–13:00',
-        CHIEU: '14:00–17:00'
-    };
-    const timeLabel = pickupTimeMap[order.pickupTime] || order.pickupTime || 'Tự do';
-    ```
-    Mã này giúp hiển thị khung giờ hẹn lấy dưới dạng huy hiệu (badge) màu đỏ nổi bật ngay dưới hình thức nhận hàng, giúp Admin chuẩn bị bánh mì nóng đúng giờ cho khách.
-2.  **Tích Hợp Link Điều Hướng Quản Trị Trực Tiếp cho ADMIN**:
-    Để tối ưu hóa trải nghiệm quản trị, toàn bộ thanh menu chính (`navbar` và `mobile-drawer`) của tất cả các trang khách hàng lẻ bao gồm [index.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/index.jsp), [menu.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/menu.jsp), [order.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/order.jsp), [wholesale.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/wholesale.jsp), [track.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/track.jsp), và [profile.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/profile.jsp) đã được cập nhật mã kiểm tra phân quyền:
-    ```jsp
-    <% if (loggedUser != null && "ADMIN".equals(loggedUser.getRole())) { %>
-        <a href="admin_dashboard.jsp" class="nav-link" style="color:var(--yellow-light) !important;font-weight:800;">Trang quản trị</a>
-    <% } %>
-    ```
-    Khi tài khoản Admin đăng nhập, họ có thể dễ dàng chuyển đổi qua lại giữa giao diện khách hàng và trang quản trị mà không cần gõ URL thủ công.
-3.  **Tách Biệt Tiến Trình Thanh Toán QR (Loại bỏ VietQR tại giỏ hàng)**:
-    Hệ thống đã loại bỏ hộp hiển thị mã QR thanh toán real-time VietQR trực tiếp tại màn hình giỏ hàng của trang [order.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/order.jsp). Việc này nhằm đẩy nhanh tốc độ đặt đơn của khách. Tiến trình thanh toán chuyển khoản QR tĩnh kèm nội dung tự sinh được chuyển toàn bộ sang màn hình theo dõi đơn hàng ([track.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/track.jsp)) sau khi đơn hàng đã được khởi tạo thành công trong hệ thống CSDL.
+1.  **Tự Động Hóa Thanh Toán Bằng Webhook Gateway (`/payment-webhook`)**:
+    *   Hệ thống bổ sung servlet **[PaymentWebhookServlet.java](file:///d:/code%20java/Test/Bakery/src/main/java/com/mycompany/bakery/controller/PaymentWebhookServlet.java)** lắng nghe cổng API `/payment-webhook`. Servlet này được thiết kế để kết nối với các cổng thanh toán (ví dụ: SePay) nhằm tự động ghi nhận tiền về tài khoản.
+    *   *Xác thực an toàn*: Servlet kiểm tra trường `Authorization: Apikey <token>` trong header, đối chiếu với tham số `payment.sepay.token` được lưu cấu hình trong `db.properties` (fallback mặc định `sepay_secret_token_123`).
+    *   *Xử lý giao dịch*: Nó trích xuất nội dung CK từ payload (hỗ trợ các trường `content`, `description`, hoặc `addInfo`), chạy Regex kiểm tra pattern `DH\d+` (mã đơn hàng).
+    *   *Phản hồi thời gian thực*: Nếu tìm thấy mã đơn đang ở trạng thái `PENDING`, servlet cập nhật trạng thái đơn thành `PAID`. Lập tức, nó phát tín hiệu WebSocket báo khách hàng (`OrderWebSocket.sendStatusUpdate`) và phát tín hiệu làm mới bảng điều khiển cho toàn bộ admin đang mở dashboard (`AdminWebSocket.broadcastRefresh()`).
+
+2.  **Cơ Chế Đồng Bộ Đơn Hàng Tự Động Theo Tài Khoản Thành Viên**:
+    *   *Cải tiến ở Backend*: Endpoint `GET /resources/orders` tại lớp **[OrderServlet.java](file:///d:/code%20java/Test/Bakery/src/main/java/com/mycompany/bakery/controller/OrderServlet.java)** được thiết kế lại. Nếu không có tham số lọc số điện thoại (`phone`), servlet kiểm tra Session hiện tại. Nếu phát hiện khách hàng đã đăng nhập (`role = CUSTOMER`), nó sẽ tự động truy vấn danh sách đơn hàng được liên kết bằng mã tài khoản `user_id` từ CSDL (`orderService.getOrdersByUserId(user.getId())`).
+    *   *Cải tiến ở Giao diện*: Trên trang **[track.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/track.jsp)**, giao diện điền/cập nhật số điện thoại thủ công (`sync-phone-input`) đối với tài khoản thành viên đã được lược bỏ. Thay vào đó, banner chào mừng xác nhận: *“Đơn hàng được tự động đồng bộ theo tài khoản của bạn”*. Khi khởi tạo trang, hàm `fetchOrdersByAccount()` được tự động gọi để tải toàn bộ lịch sử đơn hàng của tài khoản thành viên đó một cách an toàn và bảo mật.
+
+3.  **Kênh Đẩy Tự Động Làm Mới Dashboard Admin (`/admin-ws`)**:
+    *   Hệ thống triển khai thêm lớp WebSocket **[AdminWebSocket.java](file:///d:/code%20java/Test/Bakery/src/main/java/com/mycompany/bakery/controller/AdminWebSocket.java)** lắng nghe tại `/admin-ws`.
+    *   Trang điều hành quản trị **[admin_dashboard.jsp](file:///d:/code%20java/Test/Bakery/src/main/webapp/view/admin_dashboard.jsp)** sẽ tự động kết nối vào kênh này khi khởi chạy.
+    *   Khi có bất kỳ thay đổi đơn hàng tự động nào từ Webhook thanh toán hoặc khi có đơn mới, server sẽ đẩy tín hiệu `"refresh"`. Dashboard admin lập tức tự kích hoạt hàm `loadOrders()` để cập nhật danh sách hiển thị và bắn thông báo Toast: *“🔔 Có cập nhật đơn hàng mới!”* mà không làm gián đoạn trải nghiệm của Admin.
+
+4.  **Chuyển Đổi Bản Đồ Sang Khung Giờ Thực Tế (Pickup Time Slot Mapping)**:
+    Khi khách lẻ chọn hình thức tự đến lấy (`TU_LAY`), thông tin giờ hẹn được lưu dưới các mã khóa (`SANG_SOM`, `SANG`, `TRUA`, `CHIEU`). Tại trang Admin Dashboard, hệ thống phân tích dữ liệu và hiển thị:
+    *   `SANG_SOM` $\rightarrow$ `5:30–7:00` | `SANG` $\rightarrow$ `7:00–9:00` | `TRUA` $\rightarrow$ `11:00–13:00` | `CHIEU` $\rightarrow$ `14:00–17:00` dưới dạng huy hiệu (badge) màu đỏ nổi bật ngay dưới hình thức nhận hàng.
+
+5.  **Tích Hợp Link Điều Hướng Quản Trị Trực Tiếp cho ADMIN**:
+    Toàn bộ menu chính (`navbar` và `mobile-drawer`) của tất cả các trang khách hàng lẻ đã được tích hợp liên kết đến trang quản trị `admin_dashboard.jsp` nếu phát hiện tài khoản đăng nhập có vai trò `ADMIN`.
 
 ---
 
-### 5.4 Luồng Đồng Bộ Trạng Thái Đơn Hàng Qua Web-Socket
+### 5.4 Sơ Đồ Quy Trình Tương Tác Qua WebSocket Mới
 ```
-[Khách lên đơn thành công] 
-       │
-       ▼
-[Trình duyệt mở kết nối WebSocket đến /order-ws/{orderId}]
-       │
-       ▼ (Admin xem đơn mới trên Dashboard)
-[Admin bấm nút đổi trạng thái đơn hàng (PENDING → PREPARING → READY)]
-       │
-       ▼
-[OrderServlet gọi OrderWebSocket.sendStatusUpdate(orderId, newStatus)]
-       │
-       ▼ (Broadcast thời gian thực)
-[Tất cả các phiên kết nối WebSocket nhận được bản tin trạng thái mới]
-       │
-       ▼
-[Giao diện trang track.jsp tự động nhảy bước tiến trình và hiển thị thông báo tương ứng]
+[ Khách Hàng lẻ / Đại Lý ]                 [ Webhook Gate (SePay) ]              [ Admin Dashboard ]
+          │                                            │                                  │
+          │ ─── 1. Gửi đơn hàng (PENDING) ───────────► │                                  │
+          │                                            │                                  │
+          │ ◄── 2. Trả về mã QR thanh toán tĩnh ──────│                                  │
+          │                                            │                                  │
+          │ ─── 3. Khách quét QR & chuyển khoản ───────► (Thanh toán thành công)
+          │                                            │                                  │
+          │                                            │ ── 4. POST /payment-webhook ───► │
+          │                                            │    (Verify Auth & verify DHxxx)  │
+          │                                            │                                  │
+          │ ◄── 5. Đẩy status PAID (OrderWebSocket) ───┼───────────────────────────────── │ (Nhận refresh)
+          │    (Giao diện track.jsp tự cập nhật)       │                                  │
+          │                                            │ ── 6. Đẩy refresh (AdminWS) ───► │ (Reload orders)
+          │                                            │                                  │
 ```
 
 ---
@@ -326,14 +327,22 @@ Hệ thống giao tiếp dữ liệu dạng JSON thông qua các Servlet sau:
 
 ### 6.2 Servlet Nghiệp Vụ Đơn Hàng (`OrderServlet` $\rightarrow$ `/resources/orders/*`)
 *   `GET /resources/orders?phone={phone}`: Tìm đơn hàng lẻ theo SĐT của khách.
-*   `GET /resources/orders`: Lấy toàn bộ đơn hàng hiện có trong hệ thống (chỉ dành cho tài khoản `ADMIN`).
+*   `GET /resources/orders`: Admin lấy toàn bộ đơn hàng hiện có trong hệ thống. **Đặc biệt**: Nếu là Khách hàng (`CUSTOMER`) đang đăng nhập gọi tới endpoint này và không truyền tham số `phone`, servlet sẽ tự động nhận diện `user_id` từ Session để trả về danh sách đơn hàng đã mua của chính khách hàng đó.
 *   `GET /resources/orders/{id}`: Trả về thông tin chi tiết một đơn hàng cụ thể kèm theo mảng JSON danh sách các món ăn đã mua (`order_items`).
 *   `POST /resources/orders`: Khởi tạo đơn hàng mới. Nhận chuỗi JSON đại diện cho thực thể `Order` và mảng các `OrderItem`, thực hiện transaction ghi đồng thời vào CSDL.
 *   `POST /resources/orders/{id}/status?status={status}`: Cập nhật trạng thái đơn hàng (chỉ dành cho `ADMIN`). Sau khi cập nhật thành công sẽ kích hoạt phát sóng trạng thái mới qua WebSocket cho khách.
 
 ---
 
-### 6.3 Servlet Nghiệp Vụ Đại Lý Sỉ (`AgentServlet` $\rightarrow$ `/resources/agents/*`)
+### 6.3 Servlet Nhận Thanh Toán Tự Động (`PaymentWebhookServlet` $\rightarrow$ `/payment-webhook`)
+*   `POST /payment-webhook`: Cổng API nhận dữ liệu webhook từ bên thứ ba (như SePay).
+    *   *Header bắt buộc*: `Authorization: Apikey <sepay_token>`.
+    *   *Payload*: Định dạng JSON chứa nội dung giao dịch (`content`, `description`, hoặc `addInfo`).
+    *   *Luồng xử lý*: Trích xuất mã đơn hàng dạng `DH\d+`, chuyển trạng thái đơn hàng thành `PAID` và kích hoạt đồng thời thông báo thời gian thực đến khách hàng lẻ (qua WebSocket `/order-ws`) và làm mới bảng điều khiển admin (qua WebSocket `/admin-ws`).
+
+---
+
+### 6.4 Servlet Nghiệp Vụ Đại Lý Sỉ (`AgentServlet` $\rightarrow$ `/resources/agents/*`)
 *   `GET /resources/agents`: Lấy danh sách toàn bộ đại lý sỉ (yêu cầu quyền `ADMIN`).
 *   `POST /resources/agents/register`: Đăng ký đại lý sỉ mới. Trạng thái mặc định là `PENDING`.
 *   `POST /resources/agents/login`: Đăng nhập đại lý sỉ. Kiểm tra trạng thái tài khoản; nếu là `PENDING` hoặc `SUSPENDED` sẽ từ chối đăng nhập. Nếu thành công, thiết lập Session với vai trò `AGENT`.
@@ -342,7 +351,7 @@ Hệ thống giao tiếp dữ liệu dạng JSON thông qua các Servlet sau:
 
 ---
 
-### 6.4 Servlet Quản Lý Thực Đơn (`ProductServlet` $\rightarrow$ `/resources/products/*`)
+### 6.5 Servlet Quản Lý Thực Đơn (`ProductServlet` $\rightarrow$ `/resources/products/*`)
 *   `GET /resources/products`: Trả về danh sách toàn bộ sản phẩm thực đơn dưới dạng mảng JSON.
 *   `GET /resources/products/{id}`: Trả về thông tin một sản phẩm cụ thể.
 *   `POST /resources/products`: Thêm món ăn mới vào thực đơn (yêu cầu quyền `ADMIN`).
@@ -351,7 +360,7 @@ Hệ thống giao tiếp dữ liệu dạng JSON thông qua các Servlet sau:
 
 ---
 
-### 6.5 Servlet Quản Lý Khách Hàng Lẻ (`AdminCustomerServlet` $\rightarrow$ `/resources/admin/customers/*`)
+### 6.6 Servlet Quản Lý Khách Hàng Lẻ (`AdminCustomerServlet` $\rightarrow$ `/resources/admin/customers/*`)
 *   `GET /resources/admin/customers`: Trả về danh sách tất cả các tài khoản có vai trò `CUSTOMER` trong hệ thống kèm ngày tạo để hiển thị trên Dashboard (yêu cầu quyền `ADMIN`).
 *   `GET /resources/admin/customers/{id}/orders`: Lấy toàn bộ lịch sử đơn hàng của một khách hàng lẻ cụ thể theo ID người dùng (yêu cầu quyền `ADMIN`).
 

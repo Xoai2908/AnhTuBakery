@@ -631,31 +631,13 @@
 
             <!-- Banner cho tài khoản thành viên -->
             <% if (loggedUser != null) { %>
-                <%
-                    String _syncPhone = "";
-                    if (loggedUser.getPhone() != null && !loggedUser.getPhone().isEmpty()) {
-                        _syncPhone = loggedUser.getPhone();
-                    }
-                %>
                 <div class="account-sync-banner" id="account-sync-banner">
                     <div class="sync-user-info">
                         <div class="sync-avatar">🥖</div>
                         <div class="sync-user-text">
                             <span class="sync-user-name">Chào mừng, <%= loggedUser.getFullname() %>!</span>
-                            <% if (!_syncPhone.isEmpty()) { %>
-                                <span class="sync-user-sub">📱 SĐT: <%= _syncPhone %> &mdash; Đơn hàng tự động đồng bộ</span>
-                            <% } else { %>
-                                <span class="sync-user-sub">Đồng bộ đơn hàng theo số điện thoại</span>
-                            <% } %>
+                            <span class="sync-user-sub">📦 Đơn hàng được tự động đồng bộ theo tài khoản của bạn</span>
                         </div>
-                    </div>
-                    <div class="sync-phone-form">
-                        <div class="sync-input-group">
-                            <span class="sync-icon-lbl">📞</span>
-                            <input type="tel" id="sync-phone-input" class="sync-input" placeholder="Nhập số điện thoại" maxlength="10"
-                                value="<%= _syncPhone %>">
-                        </div>
-                        <button class="btn btn-sync" onclick="syncPhoneNumber()">Cập nhật SĐT</button>
                     </div>
                 </div>
             <% } else { %>
@@ -722,11 +704,16 @@
         if (loggedUser != null && loggedUser.getPhone() != null && !loggedUser.getPhone().isEmpty()) {
             _userPhone = loggedUser.getPhone();
         }
+        String _userId = "";
+        if (loggedUser != null) {
+            _userId = String.valueOf(loggedUser.getId());
+        }
     %>
     <!-- Metadata passed from JSP to JavaScript to avoid IDE syntax parsing errors -->
     <div id="jsp-metadata" 
          data-logged-in="<%= loggedUser != null %>" 
          data-phone="<%= _userPhone %>" 
+         data-user-id="<%= _userId %>"
          data-context-path="<%= request.getContextPath() %>" 
          style="display: none;"></div>
 
@@ -784,26 +771,16 @@
         });
 
         function initPage() {
-            // Xác định số điện thoại để tự động truy vấn
             if (isUserLoggedIn) {
-                if (loggedUserPhone) {
-                    currentSyncPhone = loggedUserPhone;
-                    document.getElementById('sync-phone-input').value = loggedUserPhone;
-                } else {
-                    currentSyncPhone = localStorage.getItem(STORAGE_PHONE_KEY) || '';
-                    if (currentSyncPhone) {
-                        document.getElementById('sync-phone-input').value = currentSyncPhone;
-                    }
-                }
+                // Người dùng đã đăng nhập: tự động tải đơn hàng theo tài khoản (user_id)
+                fetchOrdersByAccount();
             } else {
+                // Khách vãng lai: thử tải theo SĐT đã lưu trước đó
                 currentSyncPhone = localStorage.getItem(STORAGE_PHONE_KEY) || '';
                 if (currentSyncPhone) {
                     document.getElementById('manual-phone').value = currentSyncPhone;
+                    fetchOrders(currentSyncPhone);
                 }
-            }
-
-            if (currentSyncPhone) {
-                fetchOrders(currentSyncPhone);
             }
         }
 
@@ -916,6 +893,54 @@
                 } else {
                     document.getElementById('tabs-header-container').classList.add('hidden');
                     renderTarget.innerHTML = getEmptyStateHtml('📦 Chưa có đơn hàng', `Chưa tìm thấy đơn hàng nào khớp với số điện thoại <strong>${phone}</strong>.`);
+                }
+            })
+            .catch(err => {
+                loadingText.classList.add('hidden');
+                renderTarget.innerHTML = getEmptyStateHtml('⚠️ Lỗi kết nối', err.message);
+            });
+        }
+
+        /* Tải danh sách đơn hàng theo tài khoản thành viên */
+        function fetchOrdersByAccount() {
+            const loadingText = document.getElementById('initial-loading-text');
+            const renderTarget = document.getElementById('orders-render-target');
+            
+            loadingText.classList.remove('hidden');
+            renderTarget.innerHTML = '';
+
+            fetch('../resources/orders')
+            .then(res => {
+                if (!res.ok) throw new Error('Lỗi truy cập dữ liệu máy chủ');
+                return res.json();
+            })
+            .then(data => {
+                loadedOrders = data || [];
+                loadingText.classList.add('hidden');
+                
+                if (loadedOrders.length > 0) {
+                    document.getElementById('tabs-header-container').classList.remove('hidden');
+                    updateTabBadges();
+                    
+                    // Tự động chuyển sang tab lịch sử nếu không có đơn hàng hoạt động
+                    const activeCount = loadedOrders.filter(o => 
+                        o.status !== 'COMPLETED' && o.status !== 'CANCELLED'
+                    ).length;
+                    if (activeCount === 0) {
+                        activeTab = 'history';
+                        document.getElementById('tab-active').classList.remove('active');
+                        document.getElementById('tab-history').classList.add('active');
+                    } else {
+                        activeTab = 'active';
+                        document.getElementById('tab-active').classList.add('active');
+                        document.getElementById('tab-history').classList.remove('active');
+                    }
+                    
+                    renderTabContent();
+                    initWebSocketsForActiveOrders();
+                } else {
+                    document.getElementById('tabs-header-container').classList.add('hidden');
+                    renderTarget.innerHTML = getEmptyStateHtml('📦 Chưa có đơn hàng', `Tài khoản của bạn chưa có đơn hàng nào.`);
                 }
             })
             .catch(err => {

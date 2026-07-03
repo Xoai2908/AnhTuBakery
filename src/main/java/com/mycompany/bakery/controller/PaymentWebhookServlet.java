@@ -53,6 +53,13 @@ public class PaymentWebhookServlet extends HttpServlet {
             webhookToken = "sepay_secret_token_123";
             LOGGER.log(Level.SEVERE, "Error loading webhook token: " + e.getMessage(), e);
         }
+
+        // Override from environment variable if set
+        String envToken = System.getenv("PAYMENT_SEPAY_TOKEN");
+        if (envToken != null && !envToken.trim().isEmpty()) {
+            webhookToken = envToken.trim();
+            LOGGER.info("Overrode payment webhook token from environment variable PAYMENT_SEPAY_TOKEN");
+        }
     }
 
     @Override

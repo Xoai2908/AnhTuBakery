@@ -8,11 +8,13 @@ com\mycompany\bakery\business\OrderService.class
 com\mycompany\bakery\data\DatabaseHelper.class
 com\mycompany\bakery\controller\AgentServlet.class
 com\mycompany\bakery\controller\OrderWebSocket.class
+com\mycompany\bakery\controller\PaymentWebhookServlet.class
 com\mycompany\bakery\controller\OrderServlet.class
 com\mycompany\bakery\business\Order.class
 com\mycompany\bakery\business\Product.class
 com\mycompany\bakery\business\OrderItem.class
 com\mycompany\bakery\business\Agent.class
 com\mycompany\bakery\business\User.class
+com\mycompany\bakery\controller\AdminWebSocket.class
 com\mycompany\bakery\controller\AuthServlet.class
 com\mycompany\bakery\data\UserDAO.class

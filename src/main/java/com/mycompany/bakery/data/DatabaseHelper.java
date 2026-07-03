@@ -36,6 +36,24 @@ public class DatabaseHelper {
         } catch (Exception e) {
             System.err.println("Error loading db.properties: " + e.getMessage());
         }
+
+        // Override with environment variables for cloud deployment (e.g., Render)
+        String envUrl = System.getenv("DB_URL");
+        if (envUrl != null && !envUrl.trim().isEmpty()) {
+            url = envUrl.trim();
+        }
+        String envUser = System.getenv("DB_USERNAME");
+        if (envUser != null && !envUser.trim().isEmpty()) {
+            username = envUser.trim();
+        }
+        String envPassword = System.getenv("DB_PASSWORD");
+        if (envPassword != null) {
+            password = envPassword;
+        }
+        String envDriver = System.getenv("DB_DRIVER");
+        if (envDriver != null && !envDriver.trim().isEmpty()) {
+            driver = envDriver.trim();
+        }
     }
 
     private static synchronized void initDatabase() {
@@ -221,6 +239,37 @@ public class DatabaseHelper {
                             System.out.println("Default admin (admin/admin123) and user (user/user123) created successfully.");
                         }
                     }
+                }
+
+                // Sync existing agents to users table if they don't have a user record
+                try {
+                    String selectMissingAgents = "SELECT * FROM agents a WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.username = a.phone)";
+                    String insertUser = "INSERT INTO users (username, password, fullname, phone, role, created_at) VALUES (?, ?, ?, ?, ?, ?)";
+                    try (java.sql.PreparedStatement psSelect = conn.prepareStatement(selectMissingAgents);
+                         ResultSet rsMissing = psSelect.executeQuery()) {
+                        try (java.sql.PreparedStatement psInsert = conn.prepareStatement(insertUser)) {
+                            while (rsMissing.next()) {
+                                String phone = rsMissing.getString("phone");
+                                String password = rsMissing.getString("password");
+                                String name = rsMissing.getString("name");
+                                String shopName = rsMissing.getString("shop_name");
+                                String createdAt = rsMissing.getString("created_at");
+                                
+                                psInsert.setString(1, phone);
+                                psInsert.setString(2, password);
+                                psInsert.setString(3, shopName + " (" + name + ")");
+                                psInsert.setString(4, phone);
+                                psInsert.setString(5, "AGENT");
+                                psInsert.setString(6, createdAt);
+                                psInsert.addBatch();
+                            }
+                            psInsert.executeBatch();
+                            System.out.println("Synchronized missing agents to users table successfully.");
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error syncing missing agents: " + e.getMessage());
+                    e.printStackTrace();
                 }
 
                 // Seed default products if table is empty

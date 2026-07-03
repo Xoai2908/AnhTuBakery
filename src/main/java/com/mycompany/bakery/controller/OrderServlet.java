@@ -36,12 +36,27 @@ public class OrderServlet extends HttpServlet {
             // GET /resources/orders?phone=...
             String phone = request.getParameter("phone");
             if (phone == null || phone.trim().isEmpty()) {
-                // Check if requester is Admin
+                // Check if requester is logged in
                 HttpSession session = request.getSession(false);
                 User user = (session != null) ? (User) session.getAttribute("user") : null;
+                
                 if (user != null && "ADMIN".equals(user.getRole())) {
                     List<Order> all = orderService.getAllOrders();
                     out.print(jsonb.toJson(all));
+                    return;
+                }
+                
+                // Nếu là CUSTOMER đã đăng nhập, trả đơn hàng theo user_id
+                if (user != null && "CUSTOMER".equals(user.getRole())) {
+                    List<Order> userOrders = orderService.getOrdersByUserId(user.getId());
+                    out.print(jsonb.toJson(userOrders));
+                    return;
+                }
+
+                // Nếu là AGENT đã đăng nhập, trả đơn hàng theo số điện thoại (username)
+                if (user != null && "AGENT".equals(user.getRole())) {
+                    List<Order> agentOrders = orderService.getOrdersByPhone(user.getUsername());
+                    out.print(jsonb.toJson(agentOrders));
                     return;
                 }
                 
